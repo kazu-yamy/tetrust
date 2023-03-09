@@ -1,8 +1,10 @@
 use crate::blocks::{block_kind, block_kind::WALL as W, BlockColor, COLOR_TABLE};
 use crate::blocks::{BlockShape, Blockkind, BLOCKS};
+use std::collections::VecDeque;
 
 pub const FIELD_WIDTH: usize = 11 + 2 + 2;
 pub const FIELD_HEIGHT: usize = 20 + 1 + 1;
+pub const NEXT_LENGTH: usize = 3;
 pub type Field = [[BlockColor; FIELD_WIDTH]; FIELD_HEIGHT];
 
 #[derive(Clone, Copy)]
@@ -23,6 +25,7 @@ pub struct Game {
     pub block: BlockShape,
     pub hold: Option<BlockShape>,
     pub holded: bool,
+    pub next: VecDeque<BlockShape>,
 }
 
 impl Game {
@@ -56,12 +59,28 @@ impl Game {
             block: BLOCKS[rand::random::<Blockkind>() as usize],
             hold: None,
             holded: false,
+            next: {
+                let mut deque = VecDeque::new();
+                for _ in 0..NEXT_LENGTH {
+                    deque.push_back(BLOCKS[rand::random::<Blockkind>() as usize]);
+                }
+                deque
+            },
         }
     }
 }
 
 #[allow(clippy::needless_range_loop)]
-pub fn draw(Game { field, pos, block, hold, .. }: &Game) {
+pub fn draw(
+    Game {
+        field,
+        pos,
+        block,
+        hold,
+        holded: _,
+        next,
+    }: &Game,
+) {
     let mut field_buf = *field;
 
     let ghost_pos = ghost_pos(field, pos, block);
@@ -84,9 +103,20 @@ pub fn draw(Game { field, pos, block, hold, .. }: &Game) {
 
     if let Some(hold) = hold {
         for y in 0..4 {
-            print!("\x1b[{};28H", y+3);
+            print!("\x1b[{};28H", y + 3);
             for x in 0..4 {
                 print!("{}", COLOR_TABLE[hold[y][x]]);
+            }
+            println!();
+        }
+    }
+
+    println!("\x1b[8;28HNEXT");
+    for (i, next) in next.iter().enumerate() {
+        for y in 0..4 {
+            print!("\x1b[{};28H", i * 4 + y + 9);
+            for x in 0..4 {
+                print!("{}", COLOR_TABLE[next[y][x]]);
             }
             println!();
         }
@@ -117,7 +147,11 @@ pub fn is_collision(field: &Field, pos: &Position, block: &BlockShape) -> bool {
     false
 }
 
-pub fn fix_block(Game { field, pos, block, .. }: &mut Game) {
+pub fn fix_block(
+    Game {
+        field, pos, block, ..
+    }: &mut Game,
+) {
     for y in 0..4 {
         for x in 0..4 {
             if block[y][x] != block_kind::NONE {
@@ -153,7 +187,10 @@ pub fn move_block(game: &mut Game, new_pos: Position) {
 pub fn spawn_block(game: &mut Game) -> Result<(), ()> {
     game.pos = Position::init();
 
-    game.block = BLOCKS[rand::random::<Blockkind>() as usize];
+    game.block = game.next.pop_front().unwrap();
+
+    game.next
+        .push_back(BLOCKS[rand::random::<Blockkind>() as usize]);
 
     if is_collision(&game.field, &game.pos, &game.block) {
         Err(())
@@ -249,17 +286,14 @@ fn super_rotation(field: &Field, pos: &Position, block: &BlockShape) -> Result<P
             x: pos.x,
             y: pos.y.checked_sub(1).unwrap_or(pos.y),
         },
-
         Position {
             x: pos.x + 1,
             y: pos.y,
         },
-
         Position {
             x: pos.x,
             y: pos.y + 1,
         },
-
         Position {
             x: pos.x.checked_sub(1).unwrap_or(pos.x),
             y: pos.y,
