@@ -21,6 +21,8 @@ pub struct Game {
     pub field: Field,
     pub pos: Position,
     pub block: BlockShape,
+    pub hold: Option<BlockShape>,
+    pub holded: bool,
 }
 
 impl Game {
@@ -52,12 +54,14 @@ impl Game {
             ],
             pos: Position::init(),
             block: BLOCKS[rand::random::<Blockkind>() as usize],
+            hold: None,
+            holded: false,
         }
     }
 }
 
 #[allow(clippy::needless_range_loop)]
-pub fn draw(Game { field, pos, block }: &Game) {
+pub fn draw(Game { field, pos, block, hold, .. }: &Game) {
     let mut field_buf = *field;
 
     let ghost_pos = ghost_pos(field, pos, block);
@@ -76,6 +80,17 @@ pub fn draw(Game { field, pos, block }: &Game) {
             }
         }
     }
+    println!("\x1b[2;28HHOLD");
+
+    if let Some(hold) = hold {
+        for y in 0..4 {
+            print!("\x1b[{};28H", y+3);
+            for x in 0..4 {
+                print!("{}", COLOR_TABLE[hold[y][x]]);
+            }
+            println!();
+        }
+    }
 
     println!("\x1b[H");
 
@@ -85,6 +100,7 @@ pub fn draw(Game { field, pos, block }: &Game) {
         }
         println!();
     }
+    println!("\x1b[0m")
 }
 
 pub fn is_collision(field: &Field, pos: &Position, block: &BlockShape) -> bool {
@@ -101,7 +117,7 @@ pub fn is_collision(field: &Field, pos: &Position, block: &BlockShape) -> bool {
     false
 }
 
-pub fn fix_block(Game { field, pos, block }: &mut Game) {
+pub fn fix_block(Game { field, pos, block, .. }: &mut Game) {
     for y in 0..4 {
         for x in 0..4 {
             if block[y][x] != block_kind::NONE {
@@ -208,6 +224,8 @@ pub fn landing(game: &mut Game) -> Result<(), ()> {
     erase_line(&mut game.field);
 
     spawn_block(game)?;
+
+    game.holded = false;
     Ok(())
 }
 
@@ -255,4 +273,20 @@ fn super_rotation(field: &Field, pos: &Position, block: &BlockShape) -> Result<P
     }
 
     Err(())
+}
+
+pub fn hold(game: &mut Game) {
+    if game.holded {
+        return;
+    }
+    if let Some(mut hold) = game.hold {
+        std::mem::swap(&mut hold, &mut game.block);
+        game.hold = Some(hold);
+        game.pos = Position::init();
+    } else {
+        game.hold = Some(game.block);
+        spawn_block(game).ok();
+    }
+
+    game.holded = true;
 }
