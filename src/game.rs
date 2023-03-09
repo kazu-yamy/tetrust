@@ -7,6 +7,13 @@ use std::collections::VecDeque;
 pub const FIELD_WIDTH: usize = 11 + 2 + 2;
 pub const FIELD_HEIGHT: usize = 20 + 1 + 1;
 pub const NEXT_LENGTH: usize = 3;
+pub const SCORE_TABLE: [usize; 5] = [
+    0,   // 0段消し
+    1,   // 1段消し
+    5,   // 2段消し
+    25,  // 3段消し
+    100, // 4段消し
+];
 pub type Field = [[BlockColor; FIELD_WIDTH]; FIELD_HEIGHT];
 
 #[derive(Clone, Copy)]
@@ -29,6 +36,8 @@ pub struct Game {
     pub holded: bool,
     pub next: VecDeque<BlockShape>,
     pub next_buf: VecDeque<BlockShape>,
+    pub score: usize,
+    pub line: usize,
 }
 
 impl Game {
@@ -64,6 +73,8 @@ impl Game {
             holded: false,
             next: gen_block_7().into(),
             next_buf: gen_block_7().into(),
+            score: 0,
+            line: 0,
         };
 
         spawn_block(&mut game).ok();
@@ -80,7 +91,8 @@ pub fn draw(
         hold,
         holded: _,
         next,
-        ..
+        next_buf: _,
+        score, ..
     }: &Game,
 ) {
     let mut field_buf = *field;
@@ -124,6 +136,8 @@ pub fn draw(
         }
     }
 
+    println!("\x1b[22;28H{}", score);
+
     println!("\x1b[H");
 
     for y in 0..FIELD_HEIGHT - 1 {
@@ -163,7 +177,8 @@ pub fn fix_block(
     }
 }
 
-pub fn erase_line(field: &mut Field) {
+pub fn erase_line(field: &mut Field) -> usize {
+    let mut count = 0;
     for y in 1..FIELD_HEIGHT - 2 {
         let mut can_erase = true;
         for x in 2..FIELD_WIDTH - 2 {
@@ -173,11 +188,13 @@ pub fn erase_line(field: &mut Field) {
             }
         }
         if can_erase {
+            count += 1;
             for y2 in (2..=y).rev() {
                 field[y2] = field[y2 - 1];
             }
         }
     }
+    count
 }
 
 pub fn move_block(game: &mut Game, new_pos: Position) {
@@ -264,7 +281,11 @@ pub fn hard_drop(game: &mut Game) {
 pub fn landing(game: &mut Game) -> Result<(), ()> {
     fix_block(game);
 
-    erase_line(&mut game.field);
+    let line = erase_line(&mut game.field);
+
+    game.score += SCORE_TABLE[line];
+
+    game.line += line;
 
     spawn_block(game)?;
 
