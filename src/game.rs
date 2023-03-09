@@ -1,5 +1,7 @@
-use crate::blocks::{block_kind, block_kind::WALL as W, BlockColor, COLOR_TABLE};
-use crate::blocks::{BlockShape, Blockkind, BLOCKS};
+use crate::blocks::{
+    block_kind, block_kind::WALL as W, gen_block_7, BlockColor, BlockShape, Blockkind, BLOCKS,
+    COLOR_TABLE,
+};
 use std::collections::VecDeque;
 
 pub const FIELD_WIDTH: usize = 11 + 2 + 2;
@@ -26,11 +28,12 @@ pub struct Game {
     pub hold: Option<BlockShape>,
     pub holded: bool,
     pub next: VecDeque<BlockShape>,
+    pub next_buf: VecDeque<BlockShape>,
 }
 
 impl Game {
     pub fn new() -> Game {
-        Game {
+        let mut game = Game {
             field: [
                 [0, W, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, W, 0],
                 [0, W, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, W, 0],
@@ -59,14 +62,12 @@ impl Game {
             block: BLOCKS[rand::random::<Blockkind>() as usize],
             hold: None,
             holded: false,
-            next: {
-                let mut deque = VecDeque::new();
-                for _ in 0..NEXT_LENGTH {
-                    deque.push_back(BLOCKS[rand::random::<Blockkind>() as usize]);
-                }
-                deque
-            },
-        }
+            next: gen_block_7().into(),
+            next_buf: gen_block_7().into(),
+        };
+
+        spawn_block(&mut game).ok();
+        game
     }
 }
 
@@ -79,6 +80,7 @@ pub fn draw(
         hold,
         holded: _,
         next,
+        ..
     }: &Game,
 ) {
     let mut field_buf = *field;
@@ -112,7 +114,7 @@ pub fn draw(
     }
 
     println!("\x1b[8;28HNEXT");
-    for (i, next) in next.iter().enumerate() {
+    for (i, next) in next.iter().take(NEXT_LENGTH).enumerate() {
         for y in 0..4 {
             print!("\x1b[{};28H", i * 4 + y + 9);
             for x in 0..4 {
@@ -189,8 +191,12 @@ pub fn spawn_block(game: &mut Game) -> Result<(), ()> {
 
     game.block = game.next.pop_front().unwrap();
 
-    game.next
-        .push_back(BLOCKS[rand::random::<Blockkind>() as usize]);
+    if let Some(next) = game.next_buf.pop_front() {
+        game.next.push_back(next);
+    } else {
+        game.next_buf = gen_block_7().into();
+        game.next.push_back(game.next_buf.pop_front().unwrap());
+    }
 
     if is_collision(&game.field, &game.pos, &game.block) {
         Err(())
