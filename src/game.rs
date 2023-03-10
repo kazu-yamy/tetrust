@@ -28,6 +28,7 @@ impl Position {
     }
 }
 
+#[derive(Clone)]
 pub struct Game {
     pub field: Field,
     pub pos: Position,
