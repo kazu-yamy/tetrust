@@ -112,7 +112,9 @@ pub fn auto() {
         draw(&game);
 
         loop {
-            thread::sleep(time::Duration::from_millis(100));
+            // sleep
+            // thread::sleep(time::Duration::from_millis(1));
+            
             // get elite after the eval
             let elite = eval(&game);
             game = elite;
