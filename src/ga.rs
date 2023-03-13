@@ -1,6 +1,9 @@
 use crate::ai::eval;
 use crate::game::*;
-use rand::prelude::*;
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
 use std::ops::Index;
 // use std::thread;
 
@@ -28,16 +31,32 @@ impl Index<GenomeKind> for GenoSeq {
     }
 }
 
+// individual
+#[derive(Clone)]
+struct Individual {
+    geno: GenoSeq,
+    score: usize,
+}
+
+impl Distribution<Individual> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, _: &mut R) -> Individual {
+        Individual {
+            geno: rand::random::<GenoSeq>(),
+            score: 0,
+        }
+    }
+}
+
 // Learing
 pub fn learning() {
-    let mut genos = rand::random::<[GenoSeq; POPULATION]>();
+    let mut inds = rand::random::<[Individual; POPULATION]>();
     for gen in 1..=GENERATION_MAX {
         println!("{gen}世代目");
-        for (i, geno) in genos.iter().enumerate() {
+        for (i, ind) in inds.iter().enumerate() {
             let mut game = Game::new();
             // finish remove n line
             while game.line < LINE_COUNT_MAX {
-                let elite = eval(&game, geno);
+                let elite = eval(&game, &ind.geno);
                 game = elite;
                 // fall elite block
                 if landing(&mut game).is_err() {
@@ -45,19 +64,23 @@ pub fn learning() {
                 }
             }
             // show gene score
-            println!("{i}: {:?} => {}", geno, game.score);
+            println!("{i}: {:?} => {}", ind.geno, game.score);
         }
         // generate next generation
-        let crossover = crossover(&genos); // cross over
-        let mutation = mutation(&genos); // mutation
-        genos.copy_from_slice(&mutation[..POPULATION]);
+        let crossover = crossover(&inds); // cross over
+        let mutation = mutation(&inds); // mutation
+        let selection = selection(&inds);
+        for (ind, selection) in inds.iter_mut().zip(selection) {
+            ind.geno = selection;
+        }
     }
     // finish
     quit();
 }
 
 // cross over
-fn crossover(genos: &[GenoSeq]) -> Vec<GenoSeq> {
+fn crossover(inds: &[Individual]) -> Vec<GenoSeq> {
+    let genos = inds.iter().map(|i| i.geno).collect::<Vec<_>>();
     let mut new_genos = vec![];
     let mut rng = rand::thread_rng();
     for i in (0..genos.len() - 1).step_by(2) {
@@ -80,15 +103,20 @@ fn mem_swap_range<T>(x: &mut [T], y: &mut [T], range: std::ops::RangeInclusive<u
 }
 
 // mutation
-fn mutation(genos: &[GenoSeq]) -> Vec<GenoSeq> {
-    let mut new_genos = vec![];
+fn mutation(inds: &[Individual]) -> Vec<GenoSeq> {
+    let mut genos = inds.iter().map(|i| i.geno).collect::<Vec<_>>();
     let mut rng = rand::thread_rng();
-    for geno in genos {
-        let mut geno = *geno;
+    for geno in genos.iter_mut() {
         geno[rng.gen_range(0..4)] = rand::random();
-        new_genos.push(geno);
     }
-    new_genos
+    genos
+}
+
+// select
+fn selection(inds: &[Individual]) -> Vec<GenoSeq> {
+    let mut new_inds = inds.to_vec();
+    new_inds.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+    new_inds.iter().map(|i| i.geno).collect()
 }
 
 #[cfg(test)]
