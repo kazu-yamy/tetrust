@@ -116,7 +116,7 @@ pub fn auto() {
             // thread::sleep(time::Duration::from_millis(1));
             
             // get elite after the eval
-            let elite = eval(&game);
+            let elite = eval(&game, &[100, 1, 10, 100]);
             game = elite;
 
             if landing(&mut game).is_err() {

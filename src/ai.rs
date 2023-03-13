@@ -1,7 +1,8 @@
 use crate::blocks::block_kind;
+use crate::ga::{GenoSeq, GenomeKind};
 use crate::game::*;
 
-pub fn eval(game: &Game) -> Game {
+pub fn eval(game: &Game, weight: &GenoSeq) -> Game {
     // elite block (Game, score)
     let mut elite = (game.clone(), 0f64);
 
@@ -34,57 +35,31 @@ pub fn eval(game: &Game) -> Game {
                 move_block(&mut game, new_pos);
                 hard_drop(&mut game);
                 fix_block(&mut game);
+                
+                // get input
+                let line = erase_line_count(&game.field);
+                let height_max = field_hight_max(&game.field);
+                let height_diff = diff_in_height(&game.field);
+                let dead_space = dead_space_count(&game.field);
 
-                // next block
-                let mut next = game.clone();
-                next.block = next.next.pop_front().unwrap();
-                next.pos = Position::init();
-                for rotate_count in 0..=3 {
-                    let mut next = next.clone();
-                    for _ in 0..=rotate_count {
-                        // rotate next block
-                        rotate_right(&mut next);
-                    }
-                    for dx in -4..=5 {
-                        let mut next = next.clone();
-                        // next block move
-                        let new_pos = Position {
-                            x: match next.pos.x as isize + dx {
-                                (..=0) => 0,
-                                x => x as usize,
-                            },
-                            y: next.pos.y + 1,
-                        };
-                        move_block(&mut next, new_pos);
-                        hard_drop(&mut next);
-                        fix_block(&mut next);
+                // normalization
+                let mut line = normalization(line as f64, 0.0, 4.0);
+                let mut height_max = 1.0 - normalization(height_max as f64, 0.0, 20.0);
+                let mut height_diff = 1.0 - normalization(height_diff as f64, 0.0, 200.0);
+                let mut dead_space = 1.0 - normalization(dead_space as f64, 0.0, 200.0);
 
-                        // get input
-                        let line = erase_line_count(&next.field);
-                        let height_max = field_hight_max(&next.field);
-                        let height_diff = diff_in_height(&next.field);
-                        let dead_space = dead_space_count(&next.field);
+                // weight
+                line *= weight[GenomeKind::Line] as f64;
+                height_max *= weight[GenomeKind::HeightMax] as f64;
+                height_diff *= weight[GenomeKind::HeightDiff] as f64;
+                dead_space *= weight[GenomeKind::DeadSpace] as f64;
 
-                        // normalization
-                        let mut line = normalization(line as f64, 0.0, 4.0);
-                        let mut height_max = 1.0 - normalization(height_max as f64, 0.0, 20.0);
-                        let mut height_diff = 1.0 - normalization(height_diff as f64, 0.0, 200.0);
-                        let mut dead_space = 1.0 - normalization(dead_space as f64, 0.0, 200.0);
-
-                        // weight
-                        line *= 100.0;
-                        height_max *= 1.0;
-                        height_diff *= 10.0;
-                        dead_space *= 100.0;
-
-                        // eval input
-                        let score = line + height_max + height_diff + dead_space;
-                        if elite.1 < score {
-                            // save best
-                            elite.0 = game.clone();
-                            elite.1 = score;
-                        }
-                    }
+                // eval input
+                let score = line + height_max + height_diff + dead_space;
+                if elite.1 < score {
+                    // save best
+                    elite.0 = game.clone();
+                    elite.1 = score;
                 }
             }
         }
