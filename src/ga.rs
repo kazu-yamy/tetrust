@@ -49,7 +49,8 @@ pub fn learning() {
         }
         // generate next generation
         let crossover = crossover(&genos); // cross over
-        genos.copy_from_slice(&crossover[..POPULATION]);
+        let mutation = mutation(&genos); // mutation
+        genos.copy_from_slice(&mutation[..POPULATION]);
     }
     // finish
     quit();
@@ -76,6 +77,18 @@ fn mem_swap_range<T>(x: &mut [T], y: &mut [T], range: std::ops::RangeInclusive<u
     for i in range {
         std::mem::swap(&mut x[i], &mut y[i]);
     }
+}
+
+// mutation
+fn mutation(genos: &[GenoSeq]) -> Vec<GenoSeq> {
+    let mut new_genos = vec![];
+    let mut rng = rand::thread_rng();
+    for geno in genos {
+        let mut geno = *geno;
+        geno[rng.gen_range(0..4)] = rand::random();
+        new_genos.push(geno);
+    }
+    new_genos
 }
 
 #[cfg(test)]
